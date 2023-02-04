@@ -33,3 +33,10 @@
     "breadth": 3.68,
     "length": 4.44
 }`
+
+* **Error Response:**
+
+  * **Code:** 406 <br />
+    **Content:** `{
+    "message": "Poor Lightning Conditions, Fix and Try Again"
+}`
