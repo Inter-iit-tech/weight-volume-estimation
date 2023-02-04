@@ -12,4 +12,4 @@ RUN apt-get install libgl1 libglib2.0-0 -y
 
 EXPOSE 5000
 
-CMD [ "python", "./volume.py" ]
+CMD [ "python", "-u" ,"./volume.py" ]
