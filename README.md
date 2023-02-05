@@ -1,11 +1,10 @@
 # Weight-Estimation
 
-## 📝 Problem Statement 
+## 📝 Problem Statement
 
-At a last mile hub, setup a tool or application that has the ability to measure the dimensions (*length, breadth and height*) and capture volumetric weights by image, depth or any sensory processing as required. The tool will scan an item placed before it one by one, and estimate the volumetric weight provided that same items are expected to have similar volumetric weight. 
+At a last mile hub, setup a tool or application that has the ability to measure the dimensions (_length, breadth and height_) and capture volumetric weights by image, depth or any sensory processing as required. The tool will scan an item placed before it one by one, and estimate the volumetric weight provided that same items are expected to have similar volumetric weight.
 
-Tool will be assisted with a barcode or qr scanner to identify the items (with barcoding or qr code scanning not being the scope of the problem). If similar items do not have the weight or dimensions within a range of accepted error, such items should be **flagged as erroneous**. 
-
+Tool will be assisted with a barcode or qr scanner to identify the items (with barcoding or qr code scanning not being the scope of the problem). If similar items do not have the weight or dimensions within a range of accepted error, such items should be **flagged as erroneous**.
 
 ## :skull::weight_lifting: Dead Weight Estimation
 
@@ -16,7 +15,7 @@ Tool will be assisted with a barcode or qr scanner to identify the items (with b
 ### :toolbox: Components Used
 
 | Item Name                     | Purpose                                          | Qty |
-|-------------------------------|--------------------------------------------------|-----|
+| ----------------------------- | ------------------------------------------------ | --- |
 | Arduino Nano                  | Central Processing Unit                          | 1   |
 | Weighing Load Cell            | Converts force into electric signal (transducer) | 4   |
 | Hx711 Weight Pressure Sensor  | Amplification of electrical signals              | 1   |
@@ -52,7 +51,7 @@ Tool will be assisted with a barcode or qr scanner to identify the items (with b
 ### :toolbox: Components Used
 
 | Item Name                           | Purpose                   | Qty |
-|-------------------------------------|---------------------------|-----|
+| ----------------------------------- | ------------------------- | --- |
 | Arduino Nano                        | Central Processing Unit   | 1   |
 | SHARP Infrared Sensor[GP2Y0A41SK0F] | Distance Measuring Sensor | 1   |
 | Liquid Crystal Display 1602         | Output                    | 1   |
@@ -61,40 +60,93 @@ Tool will be assisted with a barcode or qr scanner to identify the items (with b
 | Wires and PCB                       | Connection                | 1   |
 
 ### Running the container:
+
 1. `cd '.\Volumetric Weight Estimation\'`
 2. `docker build -t weight_estimation .`
 3. `docker run -d -p 5000:5000 weight_estimation2`
 
 ### API Documentation:
-**1. Get Volume and other details:**
 
-* **URL**: http://localhost:5000/volume
+**1. Get Volume and other details from an image file:**
 
-* **Method:** `POST`
-  
-*  **URL Params**
+- **URL**: http://localhost:5000/volume/fromFile
 
-   **Required:**
-   
-   form-data
-    | key | data |
-    |:---:|:----:|
-    | file| image.jpeg |
-    
-    (Upload your file here)
+- **Method:** `POST`
+- **Request**
 
-* **Success Response:**
-  
-  * **Code:** 201 <br />
-    **Content:** `{
-    "area": 83.42484632380285,
-    "breadth": 3.68,
-    "length": 4.44
-}`
+  The request body should contain a payload of type `form-data` having the following properties:
+  | key | value |
+  |:---:|:----:|
+  | file| image (file buffer) |
 
-* **Error Response:**
+  Supported image formats include `png`, `jpg` and `jpeg`.
 
-  * **Code:** 406 <br />
-    **Content:** `{
-    "message": "Poor Lightning Conditions, Fix and Try Again"
-}`
+- **Success Response:**
+
+  - **Code:** 201 <br />
+    **Content:**
+    ```python
+    {
+      "area": float,
+      "breadth": float,
+      "length": float
+    }
+    ```
+
+- **Error Response:**
+
+  - **Code:** 406 <br />
+    **Content:**
+
+    ```python
+    {
+      "message": "Poor Lightning Conditions, Fix and Try Again"
+    }
+    ```
+
+  - **Code:** 400
+    ```python
+    {
+      "message": "No file part in the request"
+    }
+    ```
+
+**2. Get Volume and other details from Base64-encoded string:**
+
+- **URL**: http://localhost:5000/volume/fromBase64
+
+- **Method:** `POST`
+- **Request**
+
+  The request body should contain a `json` payload having the following properties:
+  | key | value |
+  |:---:|:----:|
+  | file| Base64-encoded string of the image's data |
+
+- **Success Response:**
+
+  - **Code:** 201
+    ```python
+    {
+      "area": float,
+      "breadth": float,
+      "length": float
+    }
+    ```
+
+- **Error Response:**
+
+  - **Code:** 406
+
+    ```python
+    {
+      "message": "Poor Lightning Conditions, Fix and Try Again"
+    }
+    ```
+
+  - **Code:** 400
+    ```python
+    {
+      "message": "JSON payload not found"
+    }
+    ```
