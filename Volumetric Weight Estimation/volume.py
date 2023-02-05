@@ -2,6 +2,9 @@ from flask import Flask, request, jsonify
 import cv2
 import math
 import numpy as np
+import base64
+import io
+import imageio.v2 as imageio
 
 # Tunable Parameters:
 WHITE_EXTRACTION_THRESHOLD = 180
@@ -71,9 +74,16 @@ def detectAndExtractWhiteBoundaries(image):
     
     return image[lr:hr+1, lc:hc+1]
 
-def getVolumeAndOtherDetails(img):
-    file_bytes = np.frombuffer(img.read(), np.uint8)
-    image = cv2.imdecode(file_bytes, cv2.IMREAD_UNCHANGED)
+def getVolumeAndOtherDetails(img, format):
+    image = None
+    if format == 'buffer':
+        file_bytes = np.frombuffer(img.read(), np.uint8)
+        image = cv2.imdecode(file_bytes, cv2.IMREAD_UNCHANGED)
+    elif format == 'base64':
+        decoded_img_data = base64.b64decode(img)
+        image = imageio.imread(io.BytesIO(decoded_img_data))
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     gray = detectAndExtractWhiteBoundaries(gray)
 
@@ -113,7 +123,6 @@ def getVolumeAndOtherDetails(img):
     if(expectedLength < expectedBreadth):
         expectedLength, expectedBreadth = expectedBreadth, expectedLength
 
-    print("File: ", img.filename)
     print("Area: ", expectedArea)
     print("Length: ", expectedLength)
     print("Breadth: ", expectedBreadth)
@@ -126,7 +135,7 @@ def getVolumeAndOtherDetails(img):
     resp.status_code = 201
     return resp
 
-@app.route('/volume', methods=['POST'])
+@app.route('/volume/fromFile', methods=['POST'])
 def upload_file():
 	# check if the post request has the file part
     if 'file' not in request.files:
@@ -139,11 +148,22 @@ def upload_file():
         resp.status_code = 400
         return resp
     if file and allowed_file(file.filename):
-        return getVolumeAndOtherDetails(file)
+        return getVolumeAndOtherDetails(file, 'buffer')
     else:
         resp = jsonify({'message' : 'Allowed file types are png, jpg, jpeg'})
         resp.status_code = 400
         return resp
+
+@app.route('/volume/fromBase64', methods=['POST'])
+def upload_data_string():
+    if not request.is_json:
+        resp = jsonify({'message' : "JSON payload not found"})
+        resp.status_code = 400
+        return resp
+    else:
+        reqBody = request.get_json();
+        img = reqBody['file']
+        return getVolumeAndOtherDetails(img, 'base64')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
