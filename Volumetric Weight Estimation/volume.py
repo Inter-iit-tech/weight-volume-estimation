@@ -116,13 +116,11 @@ def getVolumeAndOtherDetails(img, format):
         print("Poor Lightning Conditions, Fix and Try Again")
         resp.status_code = 400
         return resp
-
-    # Canny Filter Parameter:
-    t_lower = 30  # Lower Threshold
-    t_upper = 200  # Upper threshold
     
-    # Applying the Canny Edge filter
-    edge = cv2.Canny(gray, t_lower, t_upper)
+
+    _, edge = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+    edge = cv2.bitwise_not(edge)
+
 
     # detect the contours on the binary image using cv2.CHAIN_APPROX_NONE
     contours, _ = cv2.findContours(image=edge, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_SIMPLE)
@@ -153,7 +151,7 @@ def getVolumeAndOtherDetails(img, format):
             expectedArea = area
             expectedLength = width
             expectedBreadth = height
-    
+
     if(not isDimInRange(expectedLength) or not isDimInRange(expectedBreadth)):
         resp = jsonify({
             'message': 'Dimension not in threshold range, Try Again'
