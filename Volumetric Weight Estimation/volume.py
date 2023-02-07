@@ -7,21 +7,39 @@ import io
 import imageio.v2 as imageio
 
 # Tunable Parameters:
-WHITE_EXTRACTION_THRESHOLD = 180
+WHITE_EXTRACTION_THRESHOLD = 150
 WHITE_EXTRACTION_PERCENT = 0.4
 MIN_LENGTH_THRESHOLD = 3                                                 # In cm
 MAX_LENGTH_THRESHOLD = 40                                                # In cm
-LENGTH_RATIO = 14
+ARUCO_LENGTH =  3.8                                                      # In cm
 MIN_AREA_THRESHOLD = MIN_LENGTH_THRESHOLD*MIN_LENGTH_THRESHOLD           # In cm2
-MAX_AREA_THRESHOLD = MAX_LENGTH_THRESHOLD*MAX_LENGTH_THRESHOLD           # In cm2
-AREA_RATIO = LENGTH_RATIO*LENGTH_RATIO
+
+app = Flask(__name__)
 
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg'])
 
 def allowed_file(filename):
 	return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-app = Flask(__name__)
+def isDimInRange(len):
+    return len >= MIN_LENGTH_THRESHOLD and len <= MAX_LENGTH_THRESHOLD
+
+def getDistance(p1, p2):
+    x1, y1 = p1
+    x2, y2 = p2
+    return math.sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2))
+
+def getAvgDist(corners):
+    return (getDistance(corners[0], corners[1]) + getDistance(corners[1], corners[2]) + getDistance(corners[2], corners[3]) + getDistance(corners[3], corners[0]))/4
+
+def getPixelWidthAruco(image):
+    dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_250)
+    parameters =  cv2.aruco.DetectorParameters()
+    detector = cv2.aruco.ArucoDetector(dictionary, parameters)
+    markerCorners, _ , _ = detector.detectMarkers(image)
+    if(len(markerCorners)==0):
+        return -1
+    return getAvgDist(markerCorners[0][0])
 
 def detectAndExtractWhiteBoundaries(image):
     lr = 0
@@ -33,9 +51,10 @@ def detectAndExtractWhiteBoundaries(image):
     while(lr < hr and percent < WHITE_EXTRACTION_PERCENT):
         white = 0
         total = hc+1
-        for i in range(hc+1):
-            if(image[lr][i] >= WHITE_EXTRACTION_THRESHOLD):
-                white += 1
+        white = np.count_nonzero(image[lr,:hc+1]>=WHITE_EXTRACTION_THRESHOLD)
+        # for i in range(hc+1):
+        #     if(image[lr][i] >= WHITE_EXTRACTION_THRESHOLD):
+        #         white += 1
         percent = white / total
         lr += 1
     
@@ -43,9 +62,10 @@ def detectAndExtractWhiteBoundaries(image):
     while(hr > lr and percent < WHITE_EXTRACTION_PERCENT):
         white = 0
         total = hc+1
-        for i in range(hc+1):
-            if(image[hr][i] >= WHITE_EXTRACTION_THRESHOLD):
-                white += 1
+        white = np.count_nonzero(image[hr,:hc+1]>=WHITE_EXTRACTION_THRESHOLD)
+        # for i in range(hc+1):
+        #     if(image[hr][i] >= WHITE_EXTRACTION_THRESHOLD):
+        #         white += 1
         percent = white / total
         hr -= 1
 
@@ -53,9 +73,10 @@ def detectAndExtractWhiteBoundaries(image):
     while(lc < hc and percent < WHITE_EXTRACTION_PERCENT):
         white = 0
         total = hr+1
-        for i in range(hr+1):
-            if(image[i][lc] >= WHITE_EXTRACTION_THRESHOLD):
-                white += 1
+        white = np.count_nonzero(image[:hr+1,lc]>=WHITE_EXTRACTION_THRESHOLD)
+        # for i in range(hr+1):
+        #     if(image[i][lc] >= WHITE_EXTRACTION_THRESHOLD):
+        #         white += 1
         percent = white / total
         lc += 1
 
@@ -63,9 +84,10 @@ def detectAndExtractWhiteBoundaries(image):
     while(hc > lc and percent < WHITE_EXTRACTION_PERCENT):
         white = 0
         total = hr+1
-        for i in range(hr+1):
-            if(image[i][hc] >= WHITE_EXTRACTION_THRESHOLD):
-                white += 1
+        white = np.count_nonzero(image[:hr+1,hc]>=WHITE_EXTRACTION_THRESHOLD)
+        # for i in range(hr+1):
+        #     if(image[i][hc] >= WHITE_EXTRACTION_THRESHOLD):
+        #         white += 1
         percent = white / total
         hc -= 1
 
@@ -92,7 +114,7 @@ def getVolumeAndOtherDetails(img, format):
             'message': 'Poor Lightning Conditions, Fix and Try Again'
         })
         print("Poor Lightning Conditions, Fix and Try Again")
-        resp.status_code = 406
+        resp.status_code = 400
         return resp
 
     # Canny Filter Parameter:
@@ -105,6 +127,19 @@ def getVolumeAndOtherDetails(img, format):
     # detect the contours on the binary image using cv2.CHAIN_APPROX_NONE
     contours, _ = cv2.findContours(image=edge, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_SIMPLE)
 
+    # draw contours on the original image
+    arucoPixelWidth = getPixelWidthAruco(image)
+    if(arucoPixelWidth==-1):
+        resp = jsonify({
+            'message': 'Could not detect aruco, Try Again'
+        })
+        print("Could not detect aruco, Try Again")
+        resp.status_code = 400
+        return resp
+
+    LENGTH_RATIO = arucoPixelWidth/ARUCO_LENGTH
+    AREA_RATIO = LENGTH_RATIO*LENGTH_RATIO
+
     expectedArea = MIN_AREA_THRESHOLD
     expectedLength = MIN_LENGTH_THRESHOLD
     expectedBreadth = MIN_LENGTH_THRESHOLD
@@ -114,11 +149,19 @@ def getVolumeAndOtherDetails(img, format):
         (_, _), (width, height), _ = rect
         width, height = width/LENGTH_RATIO, height/LENGTH_RATIO
         area = cv2.contourArea(cv2.convexHull(contour)) / AREA_RATIO
-        if(width >= MIN_LENGTH_THRESHOLD and height >=MIN_LENGTH_THRESHOLD and area >= MIN_AREA_THRESHOLD and area <= MAX_AREA_THRESHOLD):
-            if(expectedArea < area):
-                expectedArea = area
-                expectedLength = width
-                expectedBreadth = height
+        if(expectedArea < area):
+            expectedArea = area
+            expectedLength = width
+            expectedBreadth = height
+    
+    if(not isDimInRange(expectedLength) or not isDimInRange(expectedBreadth)):
+        resp = jsonify({
+            'message': 'Dimension not in threshold range, Try Again'
+        })
+        print("Dimensions are not in threshold range...")
+        resp.status_code = 400
+        return resp
+
 
     if(expectedLength < expectedBreadth):
         expectedLength, expectedBreadth = expectedBreadth, expectedLength
