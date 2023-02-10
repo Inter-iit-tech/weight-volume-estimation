@@ -11,7 +11,7 @@ WHITE_EXTRACTION_THRESHOLD = 150
 WHITE_EXTRACTION_PERCENT = 0.4
 MIN_LENGTH_THRESHOLD = 3                                                 # In cm
 MAX_LENGTH_THRESHOLD = 40                                                # In cm
-ARUCO_LENGTH =  3.8                                                      # In cm
+ARUCO_LENGTH =  3                                                     # In cm
 MIN_AREA_THRESHOLD = MIN_LENGTH_THRESHOLD*MIN_LENGTH_THRESHOLD           # In cm2
 
 app = Flask(__name__)
@@ -118,7 +118,7 @@ def getVolumeAndOtherDetails(img, format):
         return resp
     
 
-    _, edge = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+    _, edge = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
     edge = cv2.bitwise_not(edge)
 
 
